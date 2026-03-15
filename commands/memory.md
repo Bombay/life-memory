@@ -41,11 +41,19 @@ Life Memory 커맨드 목록:
      - "GitHub private repo를 생성하고 연결할까요?" 확인
      - 승인 → `gh repo create life-memory --private --source=. --push` 실행
      - repo 이미 존재 시: "기존 repo에 연결할까요?" → `gh repo view life-memory --json sshUrl -q .sshUrl`로 URL 조회 → `git remote add origin <url>` + `git push -u origin main`
-     - gh 미설치 시: OS 감지 후 적절한 패키지 매니저로 직접 설치 (macOS: `brew install gh`, Linux/WSL: `sudo apt install gh` 또는 해당 배포판 패키지 매니저) → "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
+     - gh 미설치 시: OS 감지 후 적절한 패키지 매니저로 직접 설치:
+       - macOS: `brew install gh`
+       - Linux/WSL: `sudo apt install gh` 또는 해당 배포판 패키지 매니저
+       - Windows: `winget install GitHub.cli`
+       → "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
      - gh 미인증 시: "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
   3. 환경변수 `LIFE_MEMORY_PATH` 미설정 시:
      - "LIFE_MEMORY_PATH 환경변수를 설정할까요?" 확인
-     - 승인 → 셸 설정 파일 감지 (`$SHELL` 기반: zsh→`~/.zshrc`, bash→`~/.bashrc`) → `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> <셸설정파일>` 실행 + "현재 세션에 적용하려면 `source <셸설정파일>`를 실행해주세요." 안내
+     - 승인 → OS/셸 감지 후 적절한 설정 파일에 추가:
+       - macOS (zsh): `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> ~/.zshrc`
+       - Linux (bash): `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> ~/.bashrc`
+       - Windows (PowerShell): `[Environment]::SetEnvironmentVariable('LIFE_MEMORY_PATH', "$env:USERPROFILE\.life-memory", 'User')`
+     - "현재 세션에 적용하려면 셸을 재시작하거나 설정 파일을 다시 로드해주세요." 안내
 - 기존: 현재 설정 표시 + 변경 가이드
 
 ## /memory rebuild [디렉토리]
