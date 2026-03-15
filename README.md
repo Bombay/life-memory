@@ -5,10 +5,13 @@
 ## 설치
 
 ```bash
-# Claude Code에서 플러그인 추가
-/plugins add /path/to/life-memory
+# 1. 마켓플레이스 등록
+/plugin marketplace add Bombay/life-memory
 
-# 메모리 저장소 초기 설정
+# 2. 플러그인 설치
+/plugin install life-memory@life-memory-marketplace
+
+# 3. 메모리 저장소 초기 설정
 /memory setup
 ```
 
