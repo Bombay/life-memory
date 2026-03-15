@@ -41,7 +41,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
 
 ## 통합 파일 부분 삭제
 
-종목 파일(finance/investing/stocks/*.yaml)은 분석+보유가 통합되어 있으므로:
+종목 파일(finance/knowledge/stocks/*.yaml 또는 디렉토리)은 분석+보유가 통합되어 있으므로:
 - 단순 삭제 요청("지워줘") → 기본적으로 전부 삭제(archive 이동) 제안
 - "분석 지워줘/초기화" → thesis/conviction/catalysts 초기화 (conviction: "none", thesis: null, catalysts: {bull: [], bear: []}), holdings/transactions 유지
 - "보유 정보 지워줘" → holdings 초기화 (quantity: 0, avg_price: 0), transactions 유지, 분석 데이터 유지
