@@ -9,9 +9,10 @@ fi
 
 cd "$MEMORY_PATH"
 
-# 미커밋 변경사항 경고
+# 미커밋 변경사항 자동 커밋 (last_accessed 갱신 포함)
 if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
-  echo "[life-memory] 경고: 커밋되지 않은 변경사항이 있습니다."
+  git add -A
+  git commit -m "memory(auto): 세션 종료 — 미커밋 변경사항 저장" --quiet 2>/dev/null || true
 fi
 
 # 충돌 상태면 push 건너뛰기
