@@ -18,14 +18,15 @@
 │   └── scripts/on-stop.sh       세션 종료 시 자동 sync
 ├── scripts/setup.sh             메모리 저장소 초기 설정
 └── docs/
-    ├── ARCHITECTURE.md          V9 아키텍처 상세 설계
+    ├── ARCHITECTURE.md          V10 아키텍처 상세 설계
     └── history/                 이전 버전 + 반복 로그 (참고용)
 ```
 
 ## 커맨드
 /remember, /recall, /forget, /memory, /undo
+/memory health — 구조 건강도 + 정리 제안
 
-## MUST (절대 규칙)
+## MUST (절대 규칙) — 10가지
 1. 제안-승인 — 메모리 기록/정리 전 반드시 사용자 승인
 2. 불변 파일 보존 — **/diary/** 및 immutable:true 파일은 수정/삭제/이동 금지
 3. 세션 초기화 — 첫 메모리 접근 시 충돌 체크 + git pull
@@ -34,7 +35,15 @@
 6. 금융 데이터 충돌 시 상세 확인 — 기존 값과 다를 때 수량/가격/날짜 확인
 7. _index.yaml 동기화 필수 — 파일 생성/삭제/이동 시 인덱스 업데이트
 8. 정리 시 정보 유실 금지 — diary는 어떤 작업도 금지, 나머지는 승인 후 허용
+9. 3-Tier 일관성 — 디렉토리 승격된 knowledge 항목은 _index.yaml + overview.yaml 필수
+10. 공고화 시 diary 원본 완전 보존
+
+## 데이터 경로 (v10)
+- 주식/투자: knowledge/stocks/
+- 지식 베이스: knowledge/
+- 절차/방법: procedures/
+- 메타/구조: _meta/
 
 ## 개발 규칙
 - 아키텍처 변경 시 docs/ARCHITECTURE.md 먼저 업데이트
-- 플러그인 버전: 2.0.0
+- 플러그인 버전: v3.0.0
