@@ -25,6 +25,7 @@
 | `/recall` | 기억 검색 | `/recall 테슬라`, `/recall 지난주 일기` |
 | `/forget` | 기억 삭제 | `/forget 테슬라` |
 | `/memory` | 시스템 관리 | `/memory sync`, `/memory status`, `/memory tidy` |
+| `/memory health` | 구조 건강도 점검 + 정리 제안 | `/memory health` |
 | `/undo` | 되돌리기 | `/undo`, `/undo 3` |
 
 커맨드 없이 대화해도 자동으로 기억 저장을 제안합니다.
@@ -33,11 +34,27 @@
 
 ```
 ~/.life-memory/
-├── finance/    재무 (투자, 예산, 거래, 투자일기)
-├── work/       커리어
-├── life/       개인 생활 (일상일기)
-└── archive/    오래된 로그
+├── diary/          에피소드 기억 (일기, 이벤트) — 불변
+├── knowledge/      의미 기억 (학습, 개념, 인물)
+│   └── stocks/     주식/투자 지식
+├── procedures/     절차 기억 (방법, 루틴, 워크플로)
+├── finance/        재무 (거래, 예산)
+├── work/           커리어
+├── life/           개인 생활
+├── _meta/          구조 건강도 모니터링
+└── archive/        오래된 로그
 ```
 
 - 대분류는 고정, 하위 폴더는 에이전트가 자율 관리
 - 모든 데이터는 git으로 버전 관리, 세션 종료 시 자동 push
+- 디렉토리 승격된 knowledge 항목은 `_index.yaml` + `overview.yaml` 필수
+
+## v10 주요 변경사항
+
+- **3-Tier 인코딩**: gist(_index.yaml) → elaborated(.yaml) → source(.md) 단계별 저장
+- **기억 유형 분리**: diary(에피소드) + knowledge(의미) + procedures(절차)
+- **연상 네트워크**: 파일 간 links + 태그 인덱스로 교차 검색
+- **자동 공고화**: /remember, /recall 중 에이전트가 지식 정리를 자동 제안
+- **메타인지**: _meta/ 디렉토리로 구조 건강도 모니터링
+- **`/memory health`**: 고아 파일, 아카이브 후보, 승격 후보 점검
+- **경로 변경**: investing/ → knowledge/stocks/ (자동 마이그레이션 지원)
