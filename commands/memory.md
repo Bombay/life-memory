@@ -35,26 +35,33 @@ Life Memory 커맨드 목록:
 
 ## /memory setup
 - 초기 설정 + 설정 변경 통합
-- 초기:
+
+### 초기 설정
   1. setup.sh 실행 (디렉토리 + config + git init)
+     - setup.sh 실행 불가 시 (Windows 네이티브 등 bash 없는 환경): 에이전트가 동일 로직을 Write/Bash 도구로 직접 실행 (mkdir, git init -b main, 파일 생성)
   2. remote 미설정 시:
+     - `gh auth status`로 gh 설치/인증 상태 사전 확인
+     - gh 미설치 시: OS 감지 후 패키지 매니저 폴백 체인으로 직접 설치:
+       - macOS: `brew install gh` → brew 없으면 gh 릴리즈 직접 다운로드 안내
+       - Linux: `/etc/os-release` 파싱 → apt/dnf/pacman 등 배포판별 설치
+       - Windows: `winget install GitHub.cli` → winget 없으면 `choco install gh` → `scoop install gh` → MSI 다운로드 안내
+     - gh 미인증 시: "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요. (Login with a web browser 선택이 가장 간단합니다)" 안내 → 사용자가 '완료'라고 입력하면 재시도
      - "GitHub private repo를 생성하고 연결할까요?" 확인
      - 승인 → `gh repo create life-memory --private --source=. --push` 실행
-     - repo 이미 존재 시: "기존 repo에 연결할까요?" → `gh repo view life-memory --json sshUrl -q .sshUrl`로 URL 조회 → `git remote add origin <url>` + `git push -u origin main`
-     - gh 미설치 시: OS 감지 후 적절한 패키지 매니저로 직접 설치:
-       - macOS: `brew install gh`
-       - Linux/WSL: `sudo apt install gh` 또는 해당 배포판 패키지 매니저
-       - Windows: `winget install GitHub.cli`
-       → "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
-     - gh 미인증 시: "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
+     - repo 이미 존재 시: `gh repo view life-memory --json name,description,sshUrl`로 기존 repo 정보 표시 → "이 repo가 맞나요?" 확인 → 승인 시 `git remote add origin <sshUrl>` → `git fetch origin` → 원격에 기존 커밋이 있으면 "원격에 기존 데이터가 있습니다" 안내 후 사용자 판단 요청 → 비어있으면 `git push -u origin main`
   3. 환경변수 `LIFE_MEMORY_PATH` 미설정 시:
      - "LIFE_MEMORY_PATH 환경변수를 설정할까요?" 확인
-     - 승인 → OS/셸 감지 후 적절한 설정 파일에 추가:
-       - macOS (zsh): `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> ~/.zshrc`
-       - Linux (bash): `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> ~/.bashrc`
-       - Windows (PowerShell): `[Environment]::SetEnvironmentVariable('LIFE_MEMORY_PATH', "$env:USERPROFILE\.life-memory", 'User')`
+     - 승인 → `$SHELL` 환경변수로 셸 감지 후 적절한 설정 파일에 추가:
+       - zsh → `~/.zshrc`
+       - bash → `~/.bashrc`
+       - 기타 → `~/.profile`
+       - Windows (PowerShell) → `[Environment]::SetEnvironmentVariable(...)` + 현재 세션에도 `$env:LIFE_MEMORY_PATH = ...` 즉시 적용
      - "현재 세션에 적용하려면 셸을 재시작하거나 설정 파일을 다시 로드해주세요." 안내
-- 기존: 현재 설정 표시 + 변경 가이드
+
+### 기존 설정 (이미 setup 완료 시)
+  - `LIFE_MEMORY_PATH` 이미 설정된 경우: "현재 경로: [값]. 변경하시겠습니까?" 확인
+  - 현재 상태 요약 표시: 디렉토리 ✓/✗, git ✓/✗, remote ✓/✗ (URL), 환경변수 ✓/✗ (경로)
+  - 변경 원하는 항목이 있으면 해당 단계만 재실행
 
 ## /memory rebuild [디렉토리]
 - 지정 디렉토리의 _index.yaml을 실제 파일/폴더 기준으로 재생성
