@@ -90,6 +90,12 @@ sync:
   remote: "origin"
   branch: "main"
 
+repository:
+  name: ""
+  url: ""
+  owner: ""
+  local_path: "${MEMORY_PATH}"
+
 archive:
   opinion_log_max: 10
   transaction_max: 30
@@ -104,10 +110,19 @@ git add -A
 git commit -m "memory: 초기 설정" 2>/dev/null || true
 
 if git remote get-url origin &>/dev/null; then
-  echo "✓ Remote: $(git remote get-url origin)"
+  REMOTE_URL=$(git remote get-url origin)
+  echo "✓ Remote: $REMOTE_URL"
+  # .memory-config.yaml에 repository 정보 업데이트
+  if [[ -f ".memory-config.yaml" ]] && grep -q 'name: ""' .memory-config.yaml 2>/dev/null; then
+    REPO_NAME=$(basename "$REMOTE_URL" .git)
+    REPO_OWNER=$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+)/[^/]+\.git$|\1|')
+    sed -i '' "s|name: \"\"|name: \"$REPO_NAME\"|" .memory-config.yaml
+    sed -i '' "s|url: \"\"|url: \"$REMOTE_URL\"|" .memory-config.yaml
+    sed -i '' "s|owner: \"\"|owner: \"$REPO_OWNER\"|" .memory-config.yaml
+  fi
 else
   echo ""
-  echo "ℹ Remote 미설정. /memory setup에서 에이전트가 GitHub repo 생성을 도와드립니다."
+  echo "ℹ Remote 미설정. /memory setup에서 에이전트가 GitHub repo 연결을 도와드립니다."
 fi
 
 echo ""

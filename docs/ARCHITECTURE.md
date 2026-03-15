@@ -285,7 +285,7 @@ transactions:
     note: "Netflix"
 ```
 
-### 6.6 .memory-config.yaml [v9 — tidy 설정 추가]
+### 6.6 .memory-config.yaml [v9 — tidy 설정 + repository 추가]
 
 ```yaml
 version: 2
@@ -309,6 +309,12 @@ sync:
   remote: "origin"
   branch: "main"
 
+repository:                      # /memory setup 시 자동 기록
+  name: "life-vault"             # GitHub repo 이름 (사용자마다 다를 수 있음)
+  url: "https://github.com/USER/life-vault.git"
+  owner: "USER"                  # GitHub username
+  local_path: "/Users/USER/.life-memory"
+
 archive:
   opinion_log_max: 10
   transaction_max: 30
@@ -316,6 +322,8 @@ archive:
 tidy:
   suggest_threshold: 20       # 한 폴더 내 파일 수가 이 값 초과 시 정리 제안
 ```
+
+> **플러그인 레포 vs 메모리 저장소**: 이 플러그인의 코드 레포(`life-memory`)와 사용자 데이터 레포(`repository.name`)는 별개이다. `repository` 섹션은 setup 시 연결된 GitHub 레포 정보를 기록하여, 세션 재시작이나 재설정 시 올바른 레포를 식별할 수 있게 한다.
 
 ---
 
@@ -631,8 +639,11 @@ Life Memory 커맨드 목록:
 
 ## /memory setup
 - 초기 설정 + 설정 변경 통합
-- 초기: 디렉토리 생성 + config 생성 + git 설정
-- 기존: 현재 설정 표시 + 변경 가이드
+- 분기 조건: `.memory-config.yaml`이 존재하고 `repository.name`이 비어있지 않으면 → 기존 설정. 그 외 → 초기 설정.
+- 초기: 디렉토리 생성 + config 생성 + git 설정 + GitHub 레포 연결 (사용자에게 레포명 입력받음, 기본: life-vault)
+- 원격에 기존 데이터가 있을 때 (새 기기 등): "원격 데이터로 교체"(권장) / "로컬 유지, 원격 덮어쓰기" / "취소" 선택지 제시
+- 연결 완료 시 `.memory-config.yaml`의 `repository` 섹션에 레포 정보 기록
+- 기존: `.memory-config.yaml`에서 연결 정보 읽어 표시 + 변경 가이드
 
 ## /memory rebuild [디렉토리]
 - 지정 디렉토리의 _index.yaml을 실제 파일/폴더 기준으로 재생성
@@ -809,8 +820,8 @@ fi
 cd "$MEMORY_PATH"
 
 if [[ ! -d ".git" ]]; then
-  git init
-  echo "✓ Git 초기화"
+  git init -b main
+  echo "✓ Git 초기화 (branch: main)"
 fi
 
 # 고정 디렉토리만 생성 (자율 영역은 에이전트가 필요 시 생성)
@@ -883,6 +894,12 @@ sync:
   remote: "origin"
   branch: "main"
 
+repository:
+  name: ""
+  url: ""
+  owner: ""
+  local_path: "${MEMORY_PATH}"
+
 archive:
   opinion_log_max: 10
   transaction_max: 30
@@ -897,12 +914,19 @@ git add -A
 git commit -m "memory: 초기 설정" 2>/dev/null || true
 
 if git remote get-url origin &>/dev/null; then
-  echo "✓ Remote: $(git remote get-url origin)"
+  REMOTE_URL=$(git remote get-url origin)
+  echo "✓ Remote: $REMOTE_URL"
+  # .memory-config.yaml에 repository 정보 업데이트
+  if [[ -f ".memory-config.yaml" ]] && grep -q 'name: ""' .memory-config.yaml 2>/dev/null; then
+    REPO_NAME=$(basename "$REMOTE_URL" .git)
+    REPO_OWNER=$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+)/[^/]+\.git$|\1|')
+    sed -i '' "s|name: \"\"|name: \"$REPO_NAME\"|" .memory-config.yaml
+    sed -i '' "s|url: \"\"|url: \"$REMOTE_URL\"|" .memory-config.yaml
+    sed -i '' "s|owner: \"\"|owner: \"$REPO_OWNER\"|" .memory-config.yaml
+  fi
 else
   echo ""
-  echo "Remote 미설정. GitHub private repo 생성 후:"
-  echo "  git remote add origin git@github.com:USERNAME/life-memory.git"
-  echo "  git push -u origin main"
+  echo "ℹ Remote 미설정. /memory setup에서 에이전트가 GitHub repo 연결을 도와드립니다."
 fi
 
 if [[ -z "${LIFE_MEMORY_PATH:-}" ]]; then

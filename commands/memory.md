@@ -35,6 +35,7 @@ Life Memory 커맨드 목록:
 
 ## /memory setup
 - 초기 설정 + 설정 변경 통합
+- 분기 조건: `.memory-config.yaml`이 존재하고 `repository.name`이 비어있지 않으면 → 기존 설정. 그 외 → 초기 설정.
 
 ### 초기 설정
   1. setup.sh 실행 (디렉토리 + config + git init)
@@ -46,9 +47,27 @@ Life Memory 커맨드 목록:
        - Linux: `/etc/os-release` 파싱 → apt/dnf/pacman 등 배포판별 설치
        - Windows: `winget install GitHub.cli` → winget 없으면 `choco install gh` → `scoop install gh` → MSI 다운로드 안내
      - gh 미인증 시: "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요. (Login with a web browser 선택이 가장 간단합니다)" 안내 → 사용자가 '완료'라고 입력하면 재시도
-     - "GitHub private repo를 생성하고 연결할까요?" 확인
-     - 승인 → `gh repo create life-memory --private --source=. --push` 실행
-     - repo 이미 존재 시: `gh repo view life-memory --json name,description,sshUrl`로 기존 repo 정보 표시 → "이 repo가 맞나요?" 확인 → 승인 시 `git remote add origin <sshUrl>` → `git fetch origin` → 원격에 기존 커밋이 있으면 "원격에 기존 데이터가 있습니다" 안내 후 사용자 판단 요청 → 비어있으면 `git push -u origin main`
+     - `.memory-config.yaml`에 `repository.name`이 비어있지 않은 값으로 있으면 해당 이름 사용
+     - 없거나 비어있으면 사용자에게 질문: "기억 저장소로 사용할 GitHub repo 이름을 입력해주세요 (기본: life-vault):"
+     - `gh repo view {입력값} --json name,description,sshUrl,isPrivate`로 존재 확인
+       - 존재 → "{owner}/{name} — {description}. 이 레포를 사용할까요?" 확인 → 승인 시 `git remote add origin <sshUrl>` → `git fetch origin` → 원격 커밋 존재 여부 확인:
+         - **원격에 기존 데이터가 있을 때** (새 기기에서 기존 레포 연결 등):
+           1. "원격에 기존 데이터가 있습니다. 어떻게 할까요?"
+           2. 선택지 제시:
+              - **"원격 데이터로 교체"** (권장) → `git fetch origin` + `git reset --hard origin/main` — setup.sh의 초기 커밋을 원격 데이터로 대체
+              - **"로컬 유지, 원격에 덮어쓰기"** → `git push -u origin main --force` — 원격의 기존 데이터를 로컬 초기 상태로 교체 (데이터 유실 경고)
+              - **"취소"** → `git remote remove origin` — remote 연결 해제, 수동 설정 안내
+           3. "원격 데이터로 교체" 후 `.memory-config.yaml`이 원격 것으로 교체된 경우, `repository.local_path`를 현재 경로로 업데이트
+         - 원격이 비어있으면 → `git push -u origin main`
+       - 미존재 → "GitHub private repo '{입력값}'을 생성할까요?" 확인 → 승인 시 `gh repo create {입력값} --private --source=. --push` 실행
+     - 연결 완료 후 `.memory-config.yaml`에 repository 섹션 기록:
+       ```yaml
+       repository:
+         name: "{repo-name}"
+         url: "{remote-url}"
+         owner: "{github-username}"
+         local_path: "{MEMORY_PATH}"
+       ```
   3. 환경변수 `LIFE_MEMORY_PATH` 미설정 시:
      - "LIFE_MEMORY_PATH 환경변수를 설정할까요?" 확인
      - 승인 → `$SHELL` 환경변수로 셸 감지 후 적절한 설정 파일에 추가:
@@ -59,8 +78,12 @@ Life Memory 커맨드 목록:
      - "현재 세션에 적용하려면 셸을 재시작하거나 설정 파일을 다시 로드해주세요." 안내
 
 ### 기존 설정 (이미 setup 완료 시)
-  - `LIFE_MEMORY_PATH` 이미 설정된 경우: "현재 경로: [값]. 변경하시겠습니까?" 확인
-  - 현재 상태 요약 표시: 디렉토리 ✓/✗, git ✓/✗, remote ✓/✗ (URL), 환경변수 ✓/✗ (경로)
+  - `.memory-config.yaml`의 repository 섹션 읽기 → 연결 정보 표시
+  - 현재 상태 요약:
+    - 디렉토리 ✓/✗ (경로)
+    - git ✓/✗
+    - GitHub 레포 ✓/✗ ({owner}/{name} — {url})
+    - 환경변수 ✓/✗ (LIFE_MEMORY_PATH={경로})
   - 변경 원하는 항목이 있으면 해당 단계만 재실행
 
 ## /memory rebuild [디렉토리]

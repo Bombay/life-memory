@@ -16,6 +16,9 @@ description: |
 ## 경로
 Bash 도구로 `$LIFE_MEMORY_PATH`를 확인한다. 환경변수가 없으면 `~/.life-memory`를 사용한다.
 
+**주의**: 이 플러그인의 코드 레포(life-memory)와 사용자 데이터 레포(life-vault 등)는 별개이다.
+데이터 접근 시 반드시 `$LIFE_MEMORY_PATH`(또는 기본값 `~/.life-memory`)를 사용하고, 플러그인 설치 경로를 메모리 저장소로 혼동하지 않는다.
+
 ## 대분류 (고정)
 - finance/ : 재무 전체 (투자 분석+보유, 투자일기, 예산, 거래)
 - work/ : 커리어 정보
