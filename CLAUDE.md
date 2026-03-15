@@ -7,6 +7,21 @@
 - 핵심: 대분류 고정(finance/work/life/archive) + 하위 자율 구조
 - 데이터 저장소: ~/.life-memory/ (git repo)
 
+## 플러그인 구조
+```
+├── CLAUDE.md                    이 파일
+├── .claude-plugin/plugin.json   플러그인 매니페스트
+├── commands/                    슬래시 커맨드 (remember, recall, forget, memory, undo)
+├── skills/life-memory/SKILL.md  스킬 정의 (트리거 + MUST/SHOULD 규칙)
+├── hooks/
+│   ├── hooks.json               훅 설정
+│   └── scripts/on-stop.sh       세션 종료 시 자동 sync
+├── scripts/setup.sh             메모리 저장소 초기 설정
+└── docs/
+    ├── ARCHITECTURE.md          V9 아키텍처 상세 설계
+    └── history/                 이전 버전 + 반복 로그 (참고용)
+```
+
 ## 커맨드
 /remember, /recall, /forget, /memory, /undo
 
