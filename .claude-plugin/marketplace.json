@@ -10,8 +10,8 @@
         "source": "github",
         "repo": "Bombay/life-memory"
       },
-      "description": "개인 장기 기억 관리 시스템. 일기, 투자 분석, 재무 데이터를 private GitHub repo에 저장하고 검색합니다.",
-      "version": "2.1.0"
+      "description": "뇌과학 기반 개인 기억 관리 시스템. 3-Tier 인코딩, 기억 유형 분리, 연상 네트워크로 일기, 투자 분석, 재무 데이터를 관리합니다.",
+      "version": "3.0.0"
     }
   ]
 }
