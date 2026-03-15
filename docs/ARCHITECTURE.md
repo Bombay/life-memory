@@ -1,956 +1,361 @@
-# Life Memory Plugin v9 — 유연한 구조 관리
+# Life Memory v10 Architecture
 
-> v8 + diary 분리(finance/life) + 하위 구조 자율 관리 + 정리 제안 + 재구성 규칙.
-> 핵심 테마: 대분류 고정 + 하위 자율, 에이전트 주도 정리, 정보 유실 방지.
-> Iteration 1: tidy 포맷, 라우팅 기준, MUST 2 보강, 검색 규칙, _index.yaml MUST 격상.
-> Iteration 2: tidy 쿨다운, 첫 사용 온보딩, 라우팅 키워드 가이드.
-> 작성일: 2026-03-12
+> v9의 "요약 전용" 한계를 극복하는 뇌과학 기반 기억 시스템 재설계.
+> 핵심: 3-Tier 인코딩 + 기억 유형 분리 + 연상 네트워크 + 공고화 + 메타인지.
+> 작성일: 2026-03-15
 
 ---
 
-## 1. v9 변경사항 (v8 대비)
+## 설계 동기
 
-| # | v8 | v9 |
-|---|-----|-----|
-| 1 | diary/ 최상위 고정 | **삭제** — finance/diary/ + life/diary/로 분리 |
-| 2 | work/, life/ 사전정의 파일 | **삭제** — 에이전트 자율 구성 |
-| 3 | _index.yaml finance/investing/ 전용 | **범용화** — 모든 대분류에 _index.yaml |
-| 4 | /memory tidy 없음 | **추가** — 정리 제안 + 재구성 |
-| 5 | MUST 2: diary/ 경로 고정 | **패턴 변경** — `**/diary/**` 파일 불변 |
-| 6 | 정리 시 이동만 | **재구성 전체 허용** — 분리/병합/이동/삭제 (diary 제외) |
-| 7 | 쓰레기통/별도 복원 | **git 이력 + /undo로 통일** |
+### v9의 4가지 문제
 
----
+1. **요약 전용 한계** — 모든 파일이 요약 중심으로 설계되어 상세 분석 데이터(시설별 MW, 계약 상세, 재무 모델) 저장 불가.
+2. **파일 간 연결 없음** — "AI 인프라 관련 모든 것"처럼 주제 횡단 검색 불가.
+3. **패턴 추출 프로세스 없음** — 에피소드(일기)에서 의미 기억·절차 기억으로 정제하는 경로 부재.
+4. **인출 실패 = 데드엔드** — 검색 실패 시 "기억이 없습니다"로 종료, 개선 피드백 없음.
 
-## 2. 핵심 원칙
+### 접근
 
-1. **All-in Private Repo** — 모든 데이터는 private GitHub repo에 push
-2. **제안-승인 워크플로** — 모든 메모리 기록/정리는 사용자 승인 후 실행
-3. **능동적 메모리 관리** — 대화 중 정보 감지 시 자동 제안 + 구조 정리 제안
+인간 뇌의 기억 시스템을 파일 기반 메모리에 매핑한다. 에피소드 기억·의미 기억·절차 기억을 디렉토리 구조로 분리하고, 해마→신피질 공고화 과정을 자동 제안 메커니즘으로 구현한다.
 
 ---
 
-## 3. 플러그인 코드 구조
+## 뇌과학 원리 매핑 테이블
+
+| 뇌과학 원리 | 뇌에서의 역할 | 파일 시스템 매핑 |
+|---|---|---|
+| **에피소드 기억** (해마) | "언제, 어디서, 무엇을" 경험 기록 | `*/diary/*.md` |
+| **의미 기억** (측두엽 신피질) | 맥락 분리된 사실/지식 | `*/knowledge/**` |
+| **절차 기억** (기저핵/소뇌) | "어떻게" — 방법론, 원칙 | `*/procedures/*.md` |
+| **인코딩 깊이** (Craik & Lockhart) | 깊을수록 강한 기억 흔적 | 3-Tier: gist → elaborated → source |
+| **청킹** (Miller) | 관련 정보를 하나의 단위로 묶음 | `_index.yaml`이 하위 파일을 청크로 대표 |
+| **연상 네트워크** (Collins & Loftus) | 확산 활성화 — 연관 기억 인출 | `links:` 메타데이터 + 태그 인덱스 |
+| **공고화** (해마→신피질) | 에피소드가 의미 기억으로 전환 | 자동 감지 + 제안 블록 통합 |
+| **메타인지** (전전두엽) | "내가 뭘 아는지 아는 것" | `_meta/` 디렉토리 |
+| **적응적 망각** (Anderson & Bjork) | 인출 경쟁 감소, 관련성 향상 | `last_accessed:` 기반 아카이빙 |
+
+---
+
+## 디렉토리 구조
 
 ```
-life-memory-plugin/
-├── .claude-plugin/
-│   └── plugin.json
-├── commands/
-│   ├── remember.md
-│   ├── recall.md
-│   ├── forget.md
-│   ├── memory.md
-│   └── undo.md
-├── skills/
-│   └── life-memory/
-│       └── SKILL.md
-├── hooks/
-│   ├── hooks.json
-│   └── scripts/
-│       └── on-stop.sh
-└── scripts/
-    └── setup.sh
-```
-
----
-
-## 4. plugin.json
-
-```json
-{
-  "name": "life-memory",
-  "version": "2.0.0",
-  "description": "개인 장기 기억 관리 시스템. 일기, 투자 분석, 재무 데이터를 private GitHub repo에 저장하고 검색합니다."
-}
-```
-
----
-
-## 5. 메모리 레포지토리 구조 [v9 — 유연한 구조]
-
-```
-~/.life-memory/                              $LIFE_MEMORY_PATH (기본값)
-├── .memory-config.yaml
-├── .sync-conflict                           동기화 충돌 마커 (존재 시 충돌)
+~/.life-memory/
+├── _meta/                              # 메타인지 (전전두엽)
+│   ├── registry.yaml                   # 태그 인덱스 + 역방향 링크 맵
+│   ├── consolidation-log.yaml          # 공고화 실행 이력
+│   ├── retrieval-failures.yaml         # 인출 실패 기록
+│   └── health-report.yaml             # 구조 건강도
 │
-├── finance/                                 재무 전체
-│   ├── _index.yaml                          finance/ 하위 구조 인덱스
-│   ├── diary/                               투자일기 (불변)
-│   │   └── 2026/
-│   │       └── 03/
-│   │           └── 2026-03-12.md
-│   ├── investing/                           투자 (분석 + 보유 통합)
-│   │   ├── _index.yaml                      종목 요약 + 보유 현황
+├── finance/
+│   ├── diary/                          # 에피소드 기억 (v9 호환)
+│   │   └── 2026/03/2026-03-15.md
+│   │
+│   ├── knowledge/                      # 의미 기억 (NEW)
+│   │   ├── _index.yaml
 │   │   ├── stocks/
-│   │   │   ├── TSLA.yaml
-│   │   │   └── 005930.yaml
-│   │   ├── crypto/                          (필요 시 생성)
-│   │   ├── etf/                             (필요 시 생성)
+│   │   │   ├── _index.yaml             # 전 종목 gist 목록
+│   │   │   ├── TSLA.yaml               # 단순 종목 = 단일 파일
+│   │   │   └── IREN/                   # 복잡 종목 = 디렉토리 승격
+│   │   │       ├── _index.yaml         # IREN gist + children 맵
+│   │   │       ├── overview.yaml       # thesis, holdings, opinion_log
+│   │   │       ├── analysis.md         # 시설, 계약, 재무 모델
+│   │   │       └── earnings/           # 분기 실적 (필요시)
+│   │   │           └── 2026-Q1.md
 │   │   ├── sectors/
-│   │   │   └── semiconductor.yaml
-│   │   └── philosophy.yaml
-│   ├── budget/
-│   │   └── 2026-03.yaml
-│   ├── accounts.yaml
-│   └── transactions/                        비투자 거래
-│       └── 2026/
-│           └── 2026-03.yaml
+│   │   │   └── ai-infrastructure.md
+│   │   └── concepts/
+│   │       └── ppa-contracts.md
+│   │
+│   ├── procedures/                     # 절차 기억 (NEW)
+│   │   ├── position-sizing.md
+│   │   └── stop-loss-rules.md
+│   │
+│   ├── budget/                         # v9 호환
+│   ├── accounts.yaml                   # v9 호환
+│   └── transactions/                   # v9 호환
 │
-├── work/                                    커리어
-│   ├── _index.yaml                          work/ 하위 구조 인덱스
-│   └── ...                                  (에이전트 자율 구성)
+├── work/
+│   ├── diary/
+│   ├── knowledge/
+│   │   ├── _index.yaml
+│   │   ├── projects/
+│   │   └── skills/
+│   └── procedures/
 │
-├── life/                                    개인 생활
-│   ├── _index.yaml                          life/ 하위 구조 인덱스
-│   ├── diary/                               일상일기 (불변)
-│   │   └── 2026/
-│   │       └── 03/
-│   │           └── 2026-03-12.md
-│   └── ...                                  (에이전트 자율 구성)
+├── life/
+│   ├── diary/
+│   ├── knowledge/
+│   │   ├── _index.yaml
+│   │   ├── people/
+│   │   ├── health/
+│   │   └── interests/
+│   └── procedures/
 │
-└── archive/
-    ├── opinion-logs/
-    │   └── TSLA-2025.yaml
-    └── transactions/
-        └── TSLA-2025.yaml
+└── archive/                            # v9 호환 (망각 목적지)
+    ├── finance/
+    ├── work/
+    └── life/
 ```
 
-### 고정 vs 자율 구분
+### v9 vs v10 구조 변경 요약
 
-| 구분 | 경로 | 규칙 |
-|------|------|------|
-| **고정** | finance/investing/, finance/diary/, finance/budget/, finance/transactions/, life/diary/, archive/ | 구조 변경 불가 |
-| **자율** | work/\*\*, life/\*\* (diary/ 제외), finance/ 내 신규 하위 | 에이전트가 _index.yaml과 함께 자유롭게 생성/정리 |
+| v9 | v10 | 변화 |
+|---|---|---|
+| `investing/` | `knowledge/stocks/` | 경로 변경 + 상위 knowledge/ 계층 추가 |
+| 단일 YAML만 | YAML + .md + 디렉토리 승격 | 3-Tier 인코딩 |
+| 없음 | `knowledge/sectors/`, `concepts/` | 의미 기억 확장 |
+| 없음 | `procedures/` | 절차 기억 신설 |
+| 없음 | `_meta/` | 메타인지 신설 |
+| diary/, transactions/, budget/, archive/ | 그대로 유지 | 100% 호환 |
 
 ---
 
-## 6. 파일 스키마 [v9]
+## 3-Tier 인코딩
 
-### 6.1 일기 (투자일기 / 일상일기)
+Craik & Lockhart의 처리 수준 이론을 파일 구조에 반영한다.
 
-```markdown
-# 2026-03-12
+### Tier 1: Gist (얕은 인코딩)
 
-## 14:30
-오늘 테슬라 10주 샀어. 250달러에.
-FSD 완전 자율주행 승인 임박이라는 루머 때문에.
+`_index.yaml`의 한 줄 요약. `/recall`의 1차 응답. 최소 토큰 소비. **gist는 50자 이내 1문장 권장.**
 
-> extracted: finance/investing/stocks/TSLA.yaml
-> tags: #투자 #테슬라 #FSD
+**conviction 레벨 (투자 종목 필수):**
+
+```
+watching — 관심 종목, 아직 분석 전 (기본값: 사용자가 미명시 시)
+low     — 분석했으나 확신 낮음
+medium  — 투자 고려 중
+high    — 강한 확신, 보유 중이거나 매수 의향
 ```
 
-- `life/diary/` — 일상일기: 하루 돌아보기
-- `finance/diary/` — 투자일기: 투자 회고, 실수 반복 방지, 투자 가치관 형성
-- 투자일기는 거래 감지로 자동 생성하지 않음. **사용자가 명시적으로 요청할 때만** 작성
+투자 종목의 gist에는 반드시 conviction을 포함한다. 포맷: `"{thesis 한줄}. conviction {level}."` conviction이 변경되면 gist도 반드시 갱신한다.
 
-### 6.2 종목 통합 파일 [v8 유지]
+### Tier 2: Elaborated (정교화 인코딩)
+
+`overview.yaml` — v9 종목 스키마 수준 + `links:`, `sources:`, `relevance:`, `last_accessed:` 확장. 기존 파일을 열지 않고도 핵심 정보를 파악할 수 있는 수준으로 작성한다.
+
+### Tier 3: Source (깊은 인코딩)
+
+`.md` 파일 — 상세 데이터, 테이블, 출처, 근거. 필요할 때만 로드. 첫 조회 시 Tier 2 응답 후 "상세 정보 있음" 안내.
+
+### 디렉토리 승격 4가지 조건
+
+단일 `.yaml` 파일이 아래 조건 중 하나를 충족하면 디렉토리 승격을 제안한다.
+
+```
+1. 파일 200줄 초과
+2. 독립적 하위 주제 3개 이상
+3. 상세 분석 요청 2회 이상
+4. opinion_log 10건 + Tier 3 데이터 존재
+```
+
+승격 패턴: `IREN.yaml` → `IREN/` (`_index.yaml` + `overview.yaml` + `analysis.md`). 에이전트가 제안하고 사용자가 승인해야 실행. 단일 git commit으로 수행하며 `/undo`로 전체 되돌리기 가능.
+
+---
+
+## 연상 네트워크
+
+### 4가지 관계 유형
+
+| 관계 | 의미 | 예시 |
+|---|---|---|
+| `related` | 동등 수준 연관 (양방향) | IREN ↔ NVDA |
+| `derived_from` | 이 지식의 출처 | analysis.md → diary/2026-03-15.md |
+| `depends_on` | 이해에 필요한 선행 지식 | IREN → PPA 계약 개념 |
+| `contradicts` | 상충하는 정보 — 파일 간에만 적용 (양방향) | 분석A.md ↔ 분석B.md |
+
+모든 YAML/MD 파일의 frontmatter에 선택적 `links:` 필드로 outgoing link를 관리한다.
+
+### 역방향 인덱스 (registry 중앙 관리)
+
+개별 파일은 outgoing link만 관리한다. 역방향 인덱스는 `_meta/registry.yaml`에서 중앙 관리한다. `/remember`로 파일 생성/수정 시 incremental 갱신, `/memory health` 시 전체 재구축.
 
 ```yaml
-# finance/investing/stocks/TSLA.yaml
-ticker: "TSLA"
-name: "Tesla Inc."
-
-# 분석
-thesis: "FSD 완전 자율주행 승인 임박 + EV 시장 리더"
-conviction: "high"
-target_price: "$300"
-catalysts:
-  bull:
-    - "FSD 완전 자율주행 규제 승인 임박"
-    - "로보택시 사업 런칭"
-  bear:
-    - "경쟁 심화 (BYD 등)"
-    - "마진 압박"
-tags: ["EV", "자율주행", "FSD"]
-
-# 보유
-holdings:
-  quantity: 20
-  avg_price: 245.00
-  currency: "USD"
-  first_buy: "2026-03-11"
-
-# 최근 거래 (최대 30건, 초과 시 archive로 이동)
-transaction_archive_years: [2025]
-transactions:
-  - date: "2026-03-11T14:30"
-    type: "buy"
-    quantity: 10
-    price: 250.00
-    note: "FSD 승인 루머"
-  - date: "2026-03-15T10:00"
-    type: "buy"
-    quantity: 10
-    price: 240.00
-    note: "추가 매수"
-
-# 의견 변화 로그 (최대 10건, 초과 시 archive로 이동)
-opinion_archive_years: [2025]
-opinion_log:
-  - date: "2026-03-11T14:30"
-    conviction: "high"
-    note: "FSD 승인 루머로 확신 상향"
-    source: "finance/diary/2026/03/2026-03-11.md"
-
-last_updated: "2026-03-15"
+# _meta/registry.yaml 구조
+reverse_links:
+  finance/knowledge/sectors/ai-infrastructure.md:
+    - path: finance/knowledge/stocks/IREN/overview.yaml
+      relation: related
+tag_index:
+  ai-infra:
+    - finance/knowledge/stocks/IREN/_index.yaml
+    - finance/knowledge/sectors/ai-infrastructure.md
 ```
 
-**추가 매수 시 avg_price 계산**: 가중평균 — `(기존수량 × 기존평단가 + 신규수량 × 신규단가) / 총수량`. 부분 매도 시 avg_price는 변경하지 않음 (FIFO/LIFO 구분 없이 평균 유지).
+이렇게 하면 파일 편집 시 한 곳만 수정하고, 역방향 탐색은 registry 조회, 동기화 실패 위험이 최소화된다.
 
-**전량 매도 시 처리**: `holdings.quantity`를 0으로 설정, `_index.yaml`에서 `watching: false`로 변경. 파일은 삭제하지 않음 (거래 이력 보존).
+### 태그 정규화
 
-### 6.3 investing/_index.yaml [v8 유지]
+태그는 항상 **kebab-case 영문 소문자**로 저장한다 (예: "AI 인프라" → `ai-infra`). 한국어 태그는 에이전트가 자동 변환. 태그 기반 검색으로 도메인(finance/work/life)을 가로지르는 연상 인출을 지원한다.
+
+---
+
+## 지식 정리 (Knowledge Consolidation)
+
+뇌의 시스템 공고화(해마 → 신피질)를 모방한다. 에피소드(diary)에서 패턴을 추출하여 knowledge와 procedures로 정제한다.
+
+**핵심 원칙: 에이전트가 자동 감지하고 제안한다. 사용자가 별도 커맨드를 지시하지 않는다.** 기존 커맨드(`/remember`, `/recall`) 실행 중 자동으로 판단하여 제안 블록에 포함한다.
+
+### 자동 감지 트리거 4가지
+
+| 사용자 행동 | 에이전트 감지 | 제안 |
+|---|---|---|
+| 일기 쓰기 (`/remember 투자일기...`) | 언급된 주제의 knowledge 파일 확인 + 관련 diary 건수 확인 | "분석 파일도 업데이트할까요?" |
+| 새 정보 기록 (`기억해줘...`) | 기존 knowledge와 충돌/보강 여부 판단 | "기존 분석에 이 정보를 반영할까요?" |
+| 검색 실패 (`/recall`) | 인출 실패인데 diary에 관련 내용 존재 | "diary에서 찾았습니다. 정리해둘까요?" |
+| 건강도 점검 (`/memory health`) | 전체 스캔으로 정리 후보 탐색 | "정리 후보 N건 발견" 리포트 |
+
+### 추출 기준 요약
+
+**knowledge로 추출:**
+- 새로운 수치/데이터 (매출, MW, 가격 등) — 1회 등장이면 충분
+- 확인된 인과 관계 ("A 때문에 B가 됐다") — 추측은 미추출
+- 새로운 인물/기관 정보 — 1회 등장이면 충분
+
+**procedures로 추출:**
+- 동일 패턴 3회 이상 반복 (예: "FOMO 매수 → 후회" 3회)
+- 명시적 원칙 선언 ("다시는 이렇게 안 하겠다") — 1회라도 명시적이면 추출
+- 체크리스트, 프레임워크 — 1회 등장이면 충분
+
+**diary에만 유지 (추출 안 함):**
+- 그날의 감정, 일시적 시장 반응, 맥락 없는 단편 메모, 추측성 인과
+
+**"에이전트가 제안, 사용자가 승인" 원칙:** 모든 추출 제안은 기존 📋 저장 제안 블록에 번호 항목으로 통합된다. 사용자는 번호 선택으로 원하는 것만 승인하면 된다.
+
+---
+
+## 메타인지 시스템
+
+### `_meta/` 4개 파일
+
+- `registry.yaml` — 태그 인덱스 + 역방향 링크 맵. 전체 기억의 지도.
+- `consolidation-log.yaml` — 공고화 실행 이력. diary에서 knowledge로 추출된 내역 추적.
+- `retrieval-failures.yaml` — 인출 실패 기록. 실패 3건+ 누적 시 패턴 분석 + 구조 개선 제안.
+- `health-report.yaml` — `/memory health` 커맨드로 생성되는 구조 건강도 리포트.
+
+### 피드백 루프
+
+```
+사용자의 자연스러운 행동
+  │
+  ├── /remember (기록)
+  │     → 관련 knowledge 존재? → 갱신 제안
+  │     → 관련 diary 3건+? → 패턴 추출 제안
+  │     → 새 주제? → knowledge 파일 생성 제안
+  │
+  ├── /recall (검색)
+  │     ├── 성공 → last_accessed 갱신
+  │     └── 실패 → retrieval-failures.yaml 기록
+  │                   → diary 탐색 → "정리해둘까요?" 제안
+  │
+  └── /memory health (점검 — 사용자가 원할 때)
+        → 전체 스캔: 정리 후보, 고아 파일, 아카이브 후보
+        → 리포트 + 개선 제안
+```
+
+모든 제안은 기존 제안 블록(📋)에 통합되며, 사용자가 y/n/번호로 선택한다.
+
+---
+
+## 아카이빙 정책
+
+v9의 건수 기반 아카이빙을 **접근 빈도 + 중요도 기반**으로 개편한다 (knowledge/procedures 파일에만 적용).
+
+### 아카이브 후보 3가지 조건 (모두 충족 시)
+
+```
+조건 1: last_accessed가 6개월 이상 전
+AND
+조건 2: importance가 "high"가 아님
+AND
+조건 3: 다른 파일에서 링크되지 않음 (registry 역방향 링크 0건)
+```
+
+### last_accessed / importance
+
+- `last_accessed` — `/recall` 시 자동 갱신. 단독 git commit 안 함. `on-stop.sh`에서 세션 종료 시 포함.
+- `importance` — 기본값: `medium`. 자동 설정: `holdings.quantity > 0` 또는 conviction `high` → `high`.
+
+기존 opinion_log 10건, transactions 30건 건수 기반 아카이빙은 v9과 동일하게 유지. diary는 불변(MUST 2), 아카이빙 대상 아님.
+
+---
+
+## 커맨드 동작 요약
+
+### /remember
+3-Tier 인코딩에 따라 대분류(finance/work/life) → 기억 유형(diary/knowledge/procedures) → Tier(gist/elaborated/source) 순으로 저장 위치를 결정한다. 저장 제안 블록에 지식 정리(공고화) 제안을 자동으로 포함한다.
+
+### /recall
+점진적 깊이 인출(Progressive Depth Retrieval)을 적용한다. Tier 1 gist 응답 후 구체적 질문이면 자동으로 Tier 2/3 심화. 6단계 그레이스풀 디그레이드:
+
+```
+1. knowledge/ 검색
+2. 못 찾으면 → procedures/ 검색
+3. 못 찾으면 → diary/ 키워드 검색
+4. diary에서 찾으면 → 결과 표시 + "knowledge로 정리할까요?" 제안
+5. 못 찾으면 → archive/ 검색
+6. 전부 못 찾으면 → "기억이 없습니다" + retrieval-failures.yaml 기록
+```
+
+### /forget
+cascade delete + dangling link 정리 + 기본 동작은 archive/ 이동 (완전 삭제는 사용자 명시 시에만). 삭제 전 git commit 스냅샷 필수.
+
+### /memory health
+구조 건강도 점검 (고아 파일, 오래된 gist, 디렉토리 승격 후보, 아카이브 후보, 누락 역방향 링크) + 정리 제안. `health-report.yaml`로 저장.
+
+### /undo
+되돌리기 시 `_meta/registry.yaml` 갱신을 함께 수행한다 (v9 대비 추가). diary 파일은 자동 제외.
+
+---
+
+## MUST 규칙 (1-10)
+
+1. **제안-승인** — 메모리 기록/정리 전 반드시 사용자 승인 (smart 모드 자동 범위 제외).
+2. **불변 파일 보존** — `**/diary/**` 경로 파일 및 `immutable: true` 항목은 절대 수정/삭제/이동 금지.
+3. **세션 초기화** — 첫 접근 시 `.sync-conflict` 확인 → 정상이면 git pull --rebase.
+4. **과장·모호 표현 확인** — finance/ 수량/가격 변경 시 "다 팔았어", "올인" 등 모호 표현 반드시 확인.
+5. **금융 거래 감지 시 저장 제안** — 코딩 중이라도 금융 거래 감지 시 1줄 알림 제안.
+6. **금융 데이터 충돌 상세 확인** — finance/ 데이터가 기존 값과 다를 때 수량/가격/날짜 상세 확인.
+7. **_index.yaml 동기화** — 파일 변경 시 직계 부모 `_index.yaml` 필수 갱신. 상위 계층은 gist 변경 시에만 갱신 (최대 3단계).
+8. **정리 시 정보 유실 금지** — 정리 실행 전 git commit 스냅샷. diary 파일은 어떤 정리 작업도 금지.
+9. **3-Tier 일관성** — 디렉토리 승격된 항목은 반드시 `_index.yaml`(Tier 1) + `overview.yaml`(Tier 2) 보유. Tier 3(.md)는 선택.
+10. **공고화 시 diary 원본 완전 보존** — diary 내용을 knowledge로 추출할 때 diary 파일은 일체 수정 금지. 추적은 `_meta/consolidation-log.yaml`에만 기록.
+
+> 상세 동작 규칙은 `skills/life-memory/SKILL.md` 참조.
+
+---
+
+## v9 호환
+
+### legacy_paths 매핑
 
 ```yaml
-# finance/investing/_index.yaml
-stocks:
-  - ticker: "TSLA"
-    name: "Tesla Inc."
-    conviction: "high"
-    quantity: 20
-    avg_price: 245.00
-    currency: "USD"
-    watching: true
-    last_updated: "2026-03-15"
-  - ticker: "005930"
-    name: "삼성전자"
-    conviction: "medium"
-    quantity: 100
-    avg_price: 68500
-    currency: "KRW"
-    watching: true
-    last_updated: "2026-03-11"
+# _meta/compat.yaml
+version: 10
+legacy_paths:
+  "finance/investing/stocks/": "finance/knowledge/stocks/"
+  "finance/investing/sectors/": "finance/knowledge/sectors/"
 ```
 
-### 6.4 대분류 _index.yaml [v9 — 신규]
+v9 경로로 접근 시 v10 경로로 자동 리다이렉트.
 
-```yaml
-# life/_index.yaml
-categories:
-  - path: diary/
-    description: "일상일기"
-    immutable: true
-  - path: health/
-    description: "건강 기록, 운동, 컨디션"
-  - path: people/
-    description: "주변 사람 정보"
-updated: "2026-03-12"
-```
+### lazy migration 전략
 
-```yaml
-# work/_index.yaml
-categories:
-  - path: projects/
-    description: "진행 중인 프로젝트"
-  - path: current-role.yaml
-    description: "현재 직무 정보"
-updated: "2026-03-12"
-```
+빅뱅 전환 없이 접근 시점에 점진적으로 마이그레이션한다.
 
-```yaml
-# finance/_index.yaml
-categories:
-  - path: diary/
-    description: "투자일기 — 회고, 실수 반복 방지, 투자 가치관"
-    immutable: true
-  - path: investing/
-    description: "투자 분석 + 보유 (종목별 통합 파일)"
-  - path: budget/
-    description: "월별 예산"
-  - path: accounts.yaml
-    description: "계좌 정보"
-  - path: transactions/
-    description: "비투자 거래 (생활비, 구독 등)"
-updated: "2026-03-12"
-```
-
-에이전트가 새 하위 폴더/파일을 생성할 때 `_index.yaml`에 항목을 추가한다. 정리 시에도 `_index.yaml`을 함께 업데이트한다.
-
-### 6.5 월별 거래 (비투자) [v8 유지]
-
-```yaml
-# finance/transactions/2026/2026-03.yaml
-month: "2026-03"
-transactions:
-  - date: "2026-03-12"
-    category: "식비"
-    amount: 15000
-    currency: "KRW"
-    note: "점심"
-  - date: "2026-03-12"
-    category: "구독"
-    amount: 14.99
-    currency: "USD"
-    note: "Netflix"
-```
-
-### 6.6 .memory-config.yaml [v9 — tidy 설정 + repository 추가]
-
-```yaml
-version: 2
-created: "2026-03-12"
-
-approval:
-  mode: "smart"
-
-conflict_policy:
-  financial: "confirm_detail"
-  opinion: "log_history"
-  general: "overwrite_with_note"
-
-suggestion:
-  sensitivity: "medium"
-  finance_reminder: true
-
-sync:
-  auto_push: true
-  auto_pull: true
-  remote: "origin"
-  branch: "main"
-
-repository:                      # /memory setup 시 자동 기록
-  name: "life-vault"             # GitHub repo 이름 (사용자마다 다를 수 있음)
-  url: "https://github.com/USER/life-vault.git"
-  owner: "USER"                  # GitHub username
-  local_path: "/Users/USER/.life-memory"
-
-archive:
-  opinion_log_max: 10
-  transaction_max: 30
-
-tidy:
-  suggest_threshold: 20       # 한 폴더 내 파일 수가 이 값 초과 시 정리 제안
-```
-
-> **플러그인 레포 vs 메모리 저장소**: 이 플러그인의 코드 레포(`life-memory`)와 사용자 데이터 레포(`repository.name`)는 별개이다. `repository` 섹션은 setup 시 연결된 GitHub 레포 정보를 기록하여, 세션 재시작이나 재설정 시 올바른 레포를 식별할 수 있게 한다.
+- **Phase 0 (즉시)** — `/memory setup` 또는 첫 `/remember` 시: `_meta/` 디렉토리 생성, `knowledge/` + `procedures/` 디렉토리 생성, `finance/investing/stocks/` → `finance/knowledge/stocks/` 이동 (git mv), `.memory-config.yaml` version 2 → 10 갱신.
+- **Phase 1 (점진)** — 새 파일은 `knowledge/` 경로에 생성. 기존 `investing/` 파일은 접근 시 자동 인식.
+- **Phase 2 (주기)** — `/memory health` 실행 시 diary에서 knowledge/procedures 추출 후보 리포트. `registry.yaml` 재구축.
 
 ---
 
-## 7. SKILL.md [v9 — 유연한 구조 관리]
-
-```markdown
----
-name: life-memory
-description: |
-  Use when the user mentions remembering, saving, recalling information,
-  or discusses diary, investments, stocks, portfolio, finances, budgets,
-  career, personal life, or any context where long-term personal memory
-  management is relevant. Also activate when user says "기억", "저장",
-  "메모리", "일기", "투자일기", "투자", "포트폴리오", "매수", "매도",
-  "포폴", "수입", "지출", "기록", or asks to remember/recall/forget something.
----
-
-# Life Memory
-
-사용자의 장기 기억 관리 시스템.
-
-## 경로
-Bash 도구로 `$LIFE_MEMORY_PATH`를 확인한다. 환경변수가 없으면 `~/.life-memory`를 사용한다.
-
-## 대분류 (고정)
-- finance/ : 재무 전체 (투자 분석+보유, 투자일기, 예산, 거래)
-- work/ : 커리어 정보
-- life/ : 개인 생활 정보 (일상일기 포함)
-- archive/ : 오래된 로그 아카이브
-
-## 하위 구조 관리
-대분류 아래의 하위 폴더/파일은 에이전트가 자율적으로 생성/관리한다.
-- 기록 시: 해당 대분류의 `_index.yaml`을 읽고, 적절한 위치를 판단하여 저장
-- 적절한 카테고리가 없으면: 새 폴더/파일을 생성하고 `_index.yaml`에 추가
-- 고정 경로(finance/investing/, finance/diary/, life/diary/, archive/)의 구조는 변경하지 않음
-
-## MUST (절대 규칙)
-
-### 1. 제안-승인
-메모리 기록/정리 전 반드시 사용자 승인.
-- smart 모드 자동 대상: diary 원문 추가, work/·life/ 기존 파일에 항목 append, finance/investing/ opinion_log append (conviction 미변경 시), catalysts/tags 수정
-- 항상 승인 필요: holdings/transactions 변경, conviction/thesis 변경, 새 파일 생성, finance/budget·accounts·transactions 변경, 모든 정리(tidy) 작업
-- finance/ 항목은 수량/가격/날짜 항상 상세 표시
-- investing/_index.yaml 동기화는 원본 파일 승인에 포함 (별도 승인 불필요)
-- 대분류 _index.yaml 업데이트는 관련 작업 승인에 포함 (별도 승인 불필요)
-- 아카이빙(opinion_log, transactions 초과분 이동)은 저장 승인에 포함된 부수 동작 (별도 승인 불필요, archive 파일 신규 생성 포함)
-- 자동 대상이라도 파일 미존재 시 새 파일 생성이므로 승인 경로로 전환
-- fallback 규칙: 위 목록에 명시되지 않은 경우, 기존 파일의 기존 항목 수정/추가는 자동, 새 파일 생성은 승인, finance/ 금액/수량 변경은 항상 승인
-
-### 2. 불변 파일 보존
-다음 조건에 해당하는 파일은 절대 수정/삭제/이동하지 않는다:
-- `**/diary/**` 경로의 파일 (finance/diary/, life/diary/)
-- `_index.yaml`에서 `immutable: true`로 표시된 경로의 파일
-- diary 외에 일기성 폴더를 별도 이름으로 생성하지 않는다 (journal/, my-diary/ 등 금지)
-
-### 3. 세션 초기화
-첫 메모리 접근 시:
-- .sync-conflict 존재 → "동기화 충돌이 있습니다. /memory sync로 해결해주세요."
-- 정상 → git pull --rebase 실행 (실패 시 로컬 그대로 진행)
-
-### 4. 과장·모호 표현 확인
-finance/ 수량/가격 변경 시 과장·모호 표현("다 팔았어", "올인", "풀매수", "손절", "정리했어", "좀 줄였어", "많이 샀어") 확인 필수.
-
-### 5. 금융 거래 감지 시 저장 제안
-금융 거래(매수/매도, 가격, 수량)가 대화에서 감지되면 반드시 저장을 제안한다.
-코딩/디버깅 중이라도 금융 거래는 1줄 알림으로 제안한다.
-
-### 6. 금융 데이터 충돌 시 상세 확인
-finance/ 데이터가 기존 값과 다를 때 수량/가격/날짜를 반드시 상세 확인한다.
-
-### 7. _index.yaml 동기화 필수
-새 파일/폴더 생성, 삭제, 이동 시 해당 대분류의 `_index.yaml`을 반드시 함께 업데이트한다.
-- investing/_index.yaml: 종목 데이터 변경 시
-- 대분류 _index.yaml (finance/, work/, life/): 하위 구조 변경 시
-- _index.yaml 업데이트는 관련 작업 승인에 포함 (별도 승인 불필요)
-
-### 8. 정리 시 정보 유실 금지
-정리(tidy) 작업에서 정보가 유실되어서는 안 된다.
-- diary 파일: 어떤 작업도 금지 (수정/삭제/이동 불가)
-- 나머지 파일: 분리/병합/이동/삭제 모두 허용 (승인 필수)
-- 정리 실행 전 반드시 git commit으로 현재 상태 스냅샷
-- 모든 정리 작업은 /undo로 복원 가능
-
-## SHOULD (권장 규칙)
-
-### 능동적 제안
-의견 변화, 새 사실, 개인 정보 변경 감지 시 응답 말미에 저장 제안.
-- 무시된 제안은 자동 소멸 (다른 주제로 넘어가면)
-- finance/ 제안은 1회 리마인드 후 소멸
-
-### 구조 정리 제안
-기록 작업 중 _index.yaml을 읽을 때 정리 필요성을 감지하면 제안.
-- 한 폴더에 파일이 tidy.suggest_threshold(기본 20)건 초과 시
-- _index.yaml에 없는 파일 발견 시
-- 유사한 파일이 다른 폴더에 분산되어 있을 시
-- 제안 형태: 응답 말미에 "💡 life/ 폴더에 파일이 많아졌습니다. /memory tidy로 정리할 수 있습니다."
-- 무시 시 자동 소멸. 같은 폴더에 대해 파일이 5건 이상 추가되기 전까지 재제안하지 않음
-
-### 충돌 해결
-- 의견/판단: opinion_log에 이전 값 보존 후 업데이트
-- 사실 정보: 변경일 기록 후 덮어쓰기
-
-### 콘텐츠 가드레일
-공개 콘텐츠(유튜브 스크립트, 블로그, SNS) 생성 시 finance/ 보유 수량, 평단가, 거래 내역은 포함하지 않는다.
-포함이 필요하면 사용자에게 "보유 정보를 공개 콘텐츠에 포함할까요?"로 확인한다.
-```
-
----
-
-## 8. 커맨드 상세 명세 [v9]
-
-### 8.1 /remember
-
-```markdown
----
-description: "기억에 정보를 저장합니다"
-argument-hint: "<기억할 내용>"
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
----
-
-사용자가 다음과 같이 요청했습니다: $ARGUMENTS
-
-## 동작
-1. $ARGUMENTS 분석. 없으면 직전 대화에서 저장할 정보 탐색.
-2. 대상 대분류 판단 → 해당 _index.yaml 읽기 → 적절한 위치 결정.
-3. 저장할 파일과 내용의 제안 생성.
-4. 사용자 승인 대기.
-5. 승인 → 파일 기록 + _index.yaml 동기화 + git commit.
-6. 결과 보고.
-
-## 일기 라우팅
-- "일기 써줘", "일기 기록해줘" → life/diary/ (일상일기)
-- "투자일기 기록해줘", "투자일기 써줘" → finance/diary/ (투자회고)
-- "기록해줘", "기억해줘" → 내용 분석하여 라우팅:
-  - 금융 키워드(매수/매도/수익률/종목명/가격/지출) → finance/
-  - 업무 키워드(회의/프로젝트/업무/팀/회사/배포) → work/
-  - 그 외 → life/
-  - 다중 도메인 해당 시 → 각 도메인별로 제안 (사용자가 번호로 선택)
-  - 키워드 목록은 대표 예시이며 에이전트는 의미 기반으로 판단한다. 판단이 모호하면 다중 도메인 제안으로 분기
-
-## 제안 블록 공식 포맷
-
-태그: `[finance]`, `[work]`, `[life]` — 대분류명 사용.
-
----
-📋 메모리 저장 제안:
-
-1. [life] life/diary/2026/03/2026-03-12.md
-   → 일상일기 원문 추가
-
-2. [finance] finance/investing/stocks/TSLA.yaml
-   → TSLA 10주 @$250 매수 + opinion_log 추가
-   확인: 테슬라 10주를 주당 $250에 매수한 것이 맞습니까?
-
-3. [work] work/projects/life-memory-plugin.yaml
-   → 프로젝트 상태 업데이트
-
-(y/n/번호선택)
----
-
-## 승인 입력
-- y/ㅇ/응 → 전체 승인
-- n/ㄴ/아니 → 전부 거부
-- 1,3 → 해당 번호만 승인
-- 그 외 텍스트 → 수정 요청
-
-5개 이상 항목은 요약 모드 (d로 상세 전환).
-
-## smart 모드 자동 저장 범위
-- 자동: diary 원문 추가, work/·life/ 기존 파일에 항목 append, finance/investing/ opinion_log append (conviction 미변경 시), catalysts/tags 수정
-- 승인 필요: holdings/transactions 변경, conviction/thesis 변경, 새 파일 생성, finance/budget·accounts·transactions 변경
-- fallback: 명시되지 않은 경우 → 기존 파일 수정/추가는 자동, 새 파일 생성은 승인, finance/ 금액/수량 변경은 항상 승인
-
-## 자동 저장 알림
-`✓ 일상일기 + 삼성전자 실적 메모 저장됨 · /undo`
-파일 경로 대신 사람이 이해하는 내용 요약. 중립적 톤.
-
-## 운영 규칙
-
-### _index.yaml 동기화 (MUST 7 준수)
-종목/프로젝트 추가/삭제/수정 시 investing/_index.yaml, 하위 구조 변경 시 대분류 _index.yaml 함께 업데이트.
-
-### opinion_log 아카이빙
-10건 초과 시 가장 오래된 항목을 archive/opinion-logs/{TICKER}-{year}.yaml로 이동.
-종목 파일의 opinion_archive_years에 해당 연도 추가.
-
-### transactions 아카이빙
-30건 초과 시 가장 오래된 항목을 archive/transactions/{TICKER}-{year}.yaml로 이동.
-종목 파일의 transaction_archive_years에 해당 연도 추가.
-holdings는 변경하지 않음 (현재 보유 상태만 반영).
-
-### conviction 가이드라인
-| 레벨 | 의미 | 표현 |
-|------|------|------|
-| high | 적극 매수/보유 | "확실해", "베팅할 만해" |
-| medium | 관망/유지 | "괜찮은 것 같아" |
-| low | 불안/매도 고려 | "불안해", "빠져야 하나" |
-| none | 관심 없음 | "모르겠어" |
-
-### 자산 클래스 확장
-finance/investing/ 하위에 stocks/ 외에 crypto/, etf/ 등 새 자산 클래스 디렉토리를 필요 시 생성.
-- 새 자산 클래스 등장 시: "finance/investing/crypto/ 디렉토리를 생성할까요?" 확인 후 생성
-- 각 자산 클래스에 동일한 investing/_index.yaml 항목 + 개별 파일 구조 적용
-- setup.sh에서는 stocks/만 초기 생성
-
-### git commit 메시지
-- 수동 승인: `memory: [요약]` (예: `memory: TSLA 10주 매수 + FSD 투자의견`)
-- 자동 저장: `memory(auto): [요약]` (예: `memory(auto): 일상일기 + 삼성전자 실적 메모`)
-- 정리: `memory(tidy): [요약]` (예: `memory(tidy): life/ 하위 건강 기록 분리`)
-```
-
-### 8.2 /recall
-
-```markdown
----
-description: "기억을 검색합니다"
-argument-hint: "<검색할 내용>"
-allowed-tools: [Read, Glob, Grep]
----
-
-사용자가 다음을 검색합니다: $ARGUMENTS
-
-## 동작
-1. $ARGUMENTS에서 검색 키워드/시간범위/종목명 파싱
-2. 검색 실행 → 결과 정리
-
-## 검색 전략
-- 종목/인물명 → investing/_index.yaml 또는 대분류 _index.yaml 확인 → 해당 파일 직접 읽기
-  - opinion_archive_years/transaction_archive_years 확인 → 과거 데이터 요청 시 archive/ 포함
-- 시간 범위("2월에", "지난주") → diary 파일 검색 (life/diary/ + finance/diary/) + opinion_log 날짜 필터
-  - archive_years 확인 → 필요 시 archive/ 파일도 검색
-- "투자일기" 명시 → finance/diary/만 검색
-- "일상일기" 명시 → life/diary/만 검색
-- "일기" (단독) → life/diary/ + finance/diary/ 양쪽 검색
-- 검색 결과에 출처 표시: `[일상일기]` / `[투자일기]`
-- 주제 키워드 → 대분류 _index.yaml 우선 확인 → 관련 파일 검색
-  - finance/transactions/는 "거래", "지출", "얼마" 등 재무 키워드 시에만 포함
-- 월간 지출 ("이번 달 얼마 썼어?") → finance/transactions/ 합산. 투자 거래 포함 여부는 사용자에게 확인.
-
-## 빈 결과
-"[키워드]에 대한 기억이 없습니다."
-```
-
-### 8.3 /forget
-
-```markdown
----
-description: "기억을 삭제합니다"
-argument-hint: "<삭제할 내용>"
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
----
-
-사용자가 삭제를 요청합니다: $ARGUMENTS
-
-## 동작
-1. $ARGUMENTS로 삭제 대상 검색
-2. 영향 범위 제안 (제안-승인)
-3. 승인 → 삭제/수정 + _index.yaml 동기화 + git commit
-
-## 삭제 범위
-- work/, life/ 파일: 삭제 가능 (일반 확인)
-- finance/ 파일: 삭제 가능 (항상 상세 확인)
-- **/diary/: 원문 보존 → 삭제하지 않음 (안내)
-
-## 통합 파일 부분 삭제
-종목 파일(finance/investing/stocks/*.yaml)은 분석+보유가 통합되어 있으므로:
-- 단순 삭제 요청("지워줘") → 기본적으로 전부 삭제 제안
-- "분석 지워줘/초기화" → thesis/conviction/catalysts 초기화 (conviction: "none", thesis: null, catalysts: {bull: [], bear: []}), holdings/transactions 유지
-- "보유 정보 지워줘" → holdings 초기화 (quantity: 0, avg_price: 0), transactions 유지, 분석 데이터 유지
-- "전부 지워줘" → 파일 삭제 + _index.yaml 동기화
-- 3가지 옵션을 매번 제시하지 않음. 사용자 발화에 "분석" 또는 "보유"가 명시된 경우에만 부분 삭제.
-
-## 대상 없음
-"[키워드]에 대한 기억이 없어 삭제할 항목이 없습니다."
-
-## 동기화
-모든 관련 파일 변경을 하나의 git commit으로 묶음.
-```
-
-### 8.4 /memory
-
-```markdown
----
-description: "메모리 시스템을 관리합니다"
-argument-hint: "<sync|status|setup|rebuild|tidy|help>"
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
----
-
-서브커맨드: $ARGUMENTS
-
-## /memory (인자 없음) 또는 /memory help
-
-Life Memory 커맨드 목록:
-- /remember <내용> — 기억 저장
-- /recall <검색어> — 기억 검색
-- /forget <내용> — 기억 삭제
-- /memory sync — 동기화
-- /memory status — 현재 상태
-- /memory setup — 초기 설정
-- /memory rebuild — 인덱스 재생성
-- /memory tidy — 구조 정리
-- /undo — 되돌리기
-
-## /memory sync
-- .sync-conflict 존재 시: 충돌 내용 표시 + 로컬/원격 선택 → 해결 후 .sync-conflict 삭제
-- 정상 시: git pull --rebase + git push + 결과 보고
-
-## /memory status
-- 대분류별 하위 구조 요약 (_index.yaml 기반)
-- 마지막 동기화 시각
-- 미커밋 변경 여부
-- 최근 저장 5건 (git log --oneline -5 --grep="memory")
-
-## /memory setup
-- 초기 설정 + 설정 변경 통합
-- 분기 조건: `.memory-config.yaml`이 존재하고 `repository.name`이 비어있지 않으면 → 기존 설정. 그 외 → 초기 설정.
-- 초기: 디렉토리 생성 + config 생성 + git 설정 + GitHub 레포 연결 (사용자에게 레포명 입력받음, 기본: life-vault)
-- 원격에 기존 데이터가 있을 때 (새 기기 등): "원격 데이터로 교체"(권장) / "로컬 유지, 원격 덮어쓰기" / "취소" 선택지 제시
-- 연결 완료 시 `.memory-config.yaml`의 `repository` 섹션에 레포 정보 기록
-- 기존: `.memory-config.yaml`에서 연결 정보 읽어 표시 + 변경 가이드
-
-## /memory rebuild [디렉토리]
-- 지정 디렉토리의 _index.yaml을 실제 파일/폴더 기준으로 재생성
-- 인자 없으면 전체 재생성
-- 사용자가 명시적으로 요청한 관리 작업이므로 별도 승인 불필요
-
-## /memory tidy [대분류]
-구조 정리 작업을 실행한다.
-1. 지정 대분류(또는 전체)의 _index.yaml과 실제 폴더 비교
-2. 정리 필요 항목 분석:
-   - 파일이 많은 폴더 → 하위 분류 제안
-   - _index.yaml에 없는 파일 → 인덱스 추가 제안
-   - 유사 파일 분산 → 통합 제안
-   - 빈 폴더 → 삭제 제안
-3. 변경 계획을 사용자 친화적 목록으로 제안:
-   ```
-   📋 정리 제안 (life/):
-
-   1. life/exercise-log.yaml → life/health/exercise-log.yaml로 이동
-   2. life/ 아래 건강 기록 3개 → life/health/ 폴더로 통합
-   3. work/ 아래 빈 폴더 1개 삭제
-
-   (y/n/번호선택) — 문제 시 /undo로 되돌릴 수 있습니다.
-   ```
-4. 사용자 승인 대기 (번호 선택으로 부분 승인 가능)
-5. 승인 → git commit(스냅샷) → 정리 실행 → git commit(정리 완료)
-6. 결과 보고
-
-### 정리 작업 규칙 (MUST 8 준수)
-- diary 파일: 어떤 작업도 금지
-- 나머지: 분리/병합/이동/삭제 모두 허용
-- 정리 전 반드시 git commit (스냅샷)
-- 정보 유실 금지 — 내용을 버리는 정리는 하지 않음
-- /undo로 복원 가능
-
-## 온보딩
-- $LIFE_MEMORY_PATH 경로 없거나 .memory-config.yaml 없으면 setup 안내
-- 첫 /remember 성공 시: "저장 완료! /recall로 검색할 수 있습니다."
-- 첫 자동 저장 발생 시 1회: "smart 모드: 금액/핵심판단 변경 외에는 자동 저장됩니다. /undo로 되돌릴 수 있습니다."
-- 도메인별 첫 사용 시 1회 팁:
-  - work/ 첫 기록: "work/ 도메인에 처음 기록합니다. 내용에 맞는 구조를 자동으로 생성합니다."
-  - life/ 첫 기록 (diary 외): "life/ 도메인에 새 카테고리를 생성합니다."
-  - finance/ 첫 투자 기록: "투자 정보를 기록합니다. /recall로 언제든 검색할 수 있습니다."
-```
-
-### 8.5 /undo
-
-```markdown
----
-description: "메모리 변경을 되돌립니다"
-argument-hint: "[번호|--more|--since 날짜]"
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
----
-
-옵션: $ARGUMENTS
-
-## 동작
-1. 최근 memory 커밋 목록 표시 (기본 10건, memory: 또는 memory(auto): 또는 memory(tidy): 접두사)
-2. 되돌릴 커밋 선택 (기본: 가장 최근)
-3. 변경 파일 목록 + 미리보기 → 승인
-4. 승인 → 되돌리기 + _index.yaml 동기화 + git commit
-
-## 옵션
-- /undo → 최근 10건 표시
-- /undo --more → 최근 30건 표시
-- /undo --since 3d → 3일 이내 커밋만 표시
-- /undo 3 → 목록의 3번 커밋 되돌리기
-
-## 연쇄 /undo
-revert 커밋은 건너뛰고 다음 memory 커밋을 대상으로 함.
-
-## 부분 되돌리기
-변경 파일 번호 표시 → "2번만 되돌려줘" 가능.
-git revert --no-commit 후 원하는 파일만 복원 → 새 커밋.
-
-## diary 보호 (MUST 2 준수)
-**/diary/ 파일이 포함된 커밋을 되돌릴 때, diary 파일은 자동 제외.
-- revert 대상에 diary 파일이 포함되면: "diary 파일은 원본 보존 규칙에 따라 제외됩니다." 안내
-- git revert --no-commit → diary 파일 checkout으로 원복 → 나머지만 커밋
-- diary 파일만 포함된 커밋은 되돌리기 불가 안내
-```
-
----
-
-## 9. hooks.json
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "type": "command",
-        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-stop.sh",
-        "timeout": 30
-      }
-    ]
-  }
-}
-```
-
----
-
-## 10. on-stop.sh
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-MEMORY_PATH="${LIFE_MEMORY_PATH:-$HOME/.life-memory}"
-
-if [[ ! -d "$MEMORY_PATH/.git" ]]; then
-  exit 0
-fi
-
-cd "$MEMORY_PATH"
-
-# 미커밋 변경사항 경고
-if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
-  echo "[life-memory] 경고: 커밋되지 않은 변경사항이 있습니다."
-fi
-
-# 충돌 상태면 push 건너뛰기
-if [[ -f ".sync-conflict" ]]; then
-  echo "[life-memory] 동기화 충돌 미해결. /memory sync로 해결해주세요."
-  exit 0
-fi
-
-# auto_push 확인
-if ! grep -q 'auto_push: true' .memory-config.yaml 2>/dev/null; then
-  exit 0
-fi
-
-# config에서 remote/branch 읽기
-REMOTE=$(grep 'remote:' .memory-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"' || echo "origin")
-BRANCH=$(grep 'branch:' .memory-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"' || echo "main")
-REMOTE=${REMOTE:-origin}
-BRANCH=${BRANCH:-main}
-
-# fetch + rebase
-git fetch "$REMOTE" "$BRANCH" --quiet 2>/dev/null || exit 0
-
-if ! git rebase "$REMOTE/$BRANCH" --quiet 2>/dev/null; then
-  git rebase --abort 2>/dev/null || true
-  echo "conflict_detected: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .sync-conflict
-  echo "[life-memory] 동기화 충돌 발생. /memory sync로 해결해주세요."
-  exit 0
-fi
-
-git push "$REMOTE" "$BRANCH" --quiet 2>/dev/null || {
-  echo "[life-memory] push 실패. /memory sync를 실행해주세요."
-}
-```
-
----
-
-## 11. setup.sh [v9 — 유연한 구조]
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-MEMORY_PATH="${LIFE_MEMORY_PATH:-$HOME/.life-memory}"
-CREATED_DATE=$(date +%Y-%m-%d)
-
-echo "=== Life Memory 초기 설정 ==="
-
-if [[ -d "$MEMORY_PATH" ]]; then
-  echo "✓ 메모리 디렉토리: $MEMORY_PATH"
-else
-  mkdir -p "$MEMORY_PATH"
-  echo "✓ 디렉토리 생성: $MEMORY_PATH"
-fi
-
-cd "$MEMORY_PATH"
-
-if [[ ! -d ".git" ]]; then
-  git init -b main
-  echo "✓ Git 초기화 (branch: main)"
-fi
-
-# 고정 디렉토리만 생성 (자율 영역은 에이전트가 필요 시 생성)
-for dir in finance/diary \
-           finance/investing/stocks finance/investing/sectors \
-           finance/budget finance/transactions \
-           work \
-           life/diary \
-           archive/opinion-logs archive/transactions; do
-  mkdir -p "$dir"
-done
-echo "✓ 디렉토리 구조 생성"
-
-# 대분류 _index.yaml 초기 생성
-if [[ ! -f "finance/_index.yaml" ]]; then
-  cat > finance/_index.yaml << YAML
-categories:
-  - path: diary/
-    description: "투자일기 — 회고, 실수 반복 방지, 투자 가치관"
-    immutable: true
-  - path: investing/
-    description: "투자 분석 + 보유 (종목별 통합 파일)"
-  - path: budget/
-    description: "월별 예산"
-  - path: accounts.yaml
-    description: "계좌 정보"
-  - path: transactions/
-    description: "비투자 거래 (생활비, 구독 등)"
-updated: "${CREATED_DATE}"
-YAML
-fi
-
-if [[ ! -f "work/_index.yaml" ]]; then
-  cat > work/_index.yaml << YAML
-categories: []
-updated: "${CREATED_DATE}"
-YAML
-fi
-
-if [[ ! -f "life/_index.yaml" ]]; then
-  cat > life/_index.yaml << YAML
-categories:
-  - path: diary/
-    description: "일상일기"
-    immutable: true
-updated: "${CREATED_DATE}"
-YAML
-fi
-
-if [[ ! -f ".memory-config.yaml" ]]; then
-  cat > .memory-config.yaml << YAML
-version: 2
-created: "${CREATED_DATE}"
-
-approval:
-  mode: "smart"
-
-conflict_policy:
-  financial: "confirm_detail"
-  opinion: "log_history"
-  general: "overwrite_with_note"
-
-suggestion:
-  sensitivity: "medium"
-  finance_reminder: true
-
-sync:
-  auto_push: true
-  auto_pull: true
-  remote: "origin"
-  branch: "main"
-
-repository:
-  name: ""
-  url: ""
-  owner: ""
-  local_path: "${MEMORY_PATH}"
-
-archive:
-  opinion_log_max: 10
-  transaction_max: 30
-
-tidy:
-  suggest_threshold: 20
-YAML
-  echo "✓ .memory-config.yaml 생성"
-fi
-
-git add -A
-git commit -m "memory: 초기 설정" 2>/dev/null || true
-
-if git remote get-url origin &>/dev/null; then
-  REMOTE_URL=$(git remote get-url origin)
-  echo "✓ Remote: $REMOTE_URL"
-  # .memory-config.yaml에 repository 정보 업데이트
-  if [[ -f ".memory-config.yaml" ]] && grep -q 'name: ""' .memory-config.yaml 2>/dev/null; then
-    REPO_NAME=$(basename "$REMOTE_URL" .git)
-    REPO_OWNER=$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+)/[^/]+\.git$|\1|')
-    sed -i '' "s|name: \"\"|name: \"$REPO_NAME\"|" .memory-config.yaml
-    sed -i '' "s|url: \"\"|url: \"$REMOTE_URL\"|" .memory-config.yaml
-    sed -i '' "s|owner: \"\"|owner: \"$REPO_OWNER\"|" .memory-config.yaml
-  fi
-else
-  echo ""
-  echo "ℹ Remote 미설정. /memory setup에서 에이전트가 GitHub repo 연결을 도와드립니다."
-fi
-
-if [[ -z "${LIFE_MEMORY_PATH:-}" ]]; then
-  echo ""
-  echo "환경변수 설정 권장:"
-  echo "  echo 'export LIFE_MEMORY_PATH=$MEMORY_PATH' >> ~/.zshrc"
-fi
-
-echo ""
-echo "=== 설정 완료 ==="
-echo "커맨드: /remember, /recall, /forget, /memory, /undo"
-```
-
----
-
-## 12. 버전 이력 요약
-
-| 버전 | 핵심 변경 | 시뮬레이션 |
-|------|----------|-----------|
-| v4 | 맥락 격리, 제안-승인, 능동적 제안 도입 | 8개 시나리오 |
-| v5 | state/ 폐지, _index.yaml, portfolio 분할, opinion_log 아카이빙 | 12개 엣지케이스 |
-| v6 | SKILL.md 간소화, 버그 수정, UX 정제 | 10개 V5 검증 |
-| v7 | plugin.json/frontmatter/hooks 구조 수정, MUST 보강 | 8개 장기 사용 + 15개 E2E |
-| v8 | 격리 제거, facts/ 삭제, 투자+보유 통합, 도메인 플랫 구조 | 30+ 시나리오, 5회 Ralph Loop |
-| **v9** | **diary 분리, 하위 자율 구조, _index.yaml 범용화, /memory tidy, 재구성 규칙** | — |
-
-> V9이 최초 배포 버전입니다. V4~V8은 설계 과정의 중간 산물이며, 마이그레이션은 해당 없습니다.
+## v10 이후 로드맵
+
+검증 과정에서 확인된, v10에서 의도적으로 제외하는 기능:
+
+| 기능 | 뇌과학 원리 | 제외 이유 | 시기 |
+|---|---|---|---|
+| 간격 반복 (`review_interval`) | Ebbinghaus 망각 곡선 | 복잡도 대비 ROI 불확실 | v11 |
+| 스키마 (`_schema.yaml`) | Bartlett 스키마 이론 | 멘탈 모델 표현이 불명확 | v11 |
+| 작업 기억 (`working-set`) | Baddeley 작업 기억 | 세션 간 상태 관리 난이도 | v11 |
+| 연결 강도 (`link strength`) | Hebb 학습 규칙 | 관리 복잡도 과중 | v11 |
