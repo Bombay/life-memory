@@ -249,7 +249,7 @@ catalysts:
     - "$100B+ 자본 조달 필요"
     - "40%+ 주식 희석"
     - "AI 수요 급감 가능성"
-tags: ["AI인프라", "데이터센터", "IaaS", "재생에너지"]
+tags: ["ai-infra", "data-center", "iaas", "renewable-energy"]
 
 holdings:
   quantity: 0
@@ -737,9 +737,10 @@ diary 내용을 knowledge로 추출할 때, diary 파일은 일체 수정하지 
 version: 10
 legacy_paths:
   "finance/investing/stocks/": "finance/knowledge/stocks/"
+  "finance/investing/sectors/": "finance/knowledge/sectors/"
 ```
 
-v9 경로(`investing/`)로 접근 시 v10 경로(`knowledge/stocks/`)로 자동 리다이렉트한다.
+v9 경로(`investing/`)로 접근 시 v10 경로(`knowledge/`)로 자동 리다이렉트한다.
 
 ### 대분류 행동 규칙
 - finance/ : 재무 전체 (투자 분석+보유, 투자일기, 예산, 거래)
