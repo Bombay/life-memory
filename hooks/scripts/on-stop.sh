@@ -35,8 +35,13 @@ BRANCH=${BRANCH:-main}
 git fetch "$REMOTE" "$BRANCH" --quiet 2>/dev/null || exit 0
 
 if ! git rebase "$REMOTE/$BRANCH" --quiet 2>/dev/null; then
+  CONFLICT_FILES=$(git diff --name-only 2>/dev/null || true)
   git rebase --abort 2>/dev/null || true
   echo "conflict_detected: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .sync-conflict
+  if [[ -n "$CONFLICT_FILES" ]]; then
+    echo "files:" >> .sync-conflict
+    echo "$CONFLICT_FILES" | while read -r f; do echo "  - $f" >> .sync-conflict; done
+  fi
   echo "[life-memory] 동기화 충돌 발생. /memory sync로 해결해주세요."
   exit 0
 fi

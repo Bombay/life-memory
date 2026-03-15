@@ -85,7 +85,12 @@ holdings는 변경하지 않음 (현재 보유 상태만 반영).
 
 ### 자산 클래스 확장
 finance/investing/ 하위에 stocks/ 외에 crypto/, etf/ 등 새 자산 클래스 디렉토리를 필요 시 생성.
-- 새 자산 클래스 등장 시: "finance/investing/crypto/ 디렉토리를 생성할까요?" 확인 후 생성
+- 새 자산 클래스는 저장 제안 블록에 통합하여 별도 확인 없이 처리:
+  ```
+  1. [finance] finance/investing/crypto/BTC.yaml (신규 파일 + crypto/ 디렉토리 생성)
+     → BTC 0.1개 @ 500만원 매수 기록
+  ```
+  디렉토리 생성은 저장 승인에 포함된 부수 동작 (별도 승인 불필요)
 - 각 자산 클래스에 동일한 investing/_index.yaml 항목 + 개별 파일 구조 적용
 - setup.sh에서는 stocks/만 초기 생성
 

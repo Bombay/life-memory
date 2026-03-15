@@ -21,7 +21,10 @@ allowed-tools: [Read, Glob, Grep]
 - 검색 결과에 출처 표시: `[일상일기]` / `[투자일기]`
 - 주제 키워드 → 대분류 _index.yaml 우선 확인 → 관련 파일 검색
   - finance/transactions/는 "거래", "지출", "얼마" 등 재무 키워드 시에만 포함
-- 월간 지출 ("이번 달 얼마 썼어?") → finance/transactions/ 합산. 투자 거래 포함 여부는 사용자에게 확인.
+- 월간 지출 ("이번 달 얼마 썼어?") → 두 수치를 모두 계산하여 함께 표시:
+  - 생활비: finance/transactions/ 합산
+  - 투자 포함: + finance/investing/ transactions 합산
+  - 예: "이번 달 지출: 생활비 150만원 / 투자 포함 650만원"
 
 ## 빈 결과
 "[키워드]에 대한 기억이 없습니다."

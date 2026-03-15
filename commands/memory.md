@@ -20,18 +20,32 @@ Life Memory 커맨드 목록:
 - /undo — 되돌리기
 
 ## /memory sync
-- .sync-conflict 존재 시: 충돌 내용 표시 + 로컬/원격 선택 → 해결 후 .sync-conflict 삭제
+- .sync-conflict 존재 시:
+  1. 충돌 파일 목록 표시 + 각 파일의 로컬/원격 diff 분석
+  2. 에이전트가 각 파일별 판단 제안: "로컬이 최신 데이터입니다. 로컬을 유지할까요?" 또는 "원격에 더 완전한 기록이 있습니다. 원격을 유지할까요?"
+  3. 사용자 승인 → 선택된 버전 적용 + .sync-conflict 삭제 + git add + git commit + git push
+  4. 결과 보고
 - 정상 시: git pull --rebase + git push + 결과 보고
 
 ## /memory status
 - 대분류별 하위 구조 요약 (_index.yaml 기반)
 - 마지막 동기화 시각
-- 미커밋 변경 여부
+- 미커밋 변경 여부 — 미커밋 변경 발견 시 "커밋할까요?" 능동 제안
 - 최근 저장 5건 (git log --oneline -5 --grep="memory")
 
 ## /memory setup
 - 초기 설정 + 설정 변경 통합
-- 초기: 디렉토리 생성 + config 생성 + git 설정
+- 초기:
+  1. setup.sh 실행 (디렉토리 + config + git init)
+  2. remote 미설정 시:
+     - "GitHub private repo를 생성하고 연결할까요?" 확인
+     - 승인 → `gh repo create life-memory --private --source=. --push` 실행
+     - repo 이미 존재 시: "기존 repo에 연결할까요?" → `gh repo view life-memory --json sshUrl -q .sshUrl`로 URL 조회 → `git remote add origin <url>` + `git push -u origin main`
+     - gh 미설치 시: `brew install gh` 직접 실행 → "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
+     - gh 미인증 시: "gh 인증이 필요합니다. 터미널에서 `gh auth login`을 실행해주세요." 안내 → 사용자 완료 보고 후 repo 생성 재시도
+  3. 환경변수 `LIFE_MEMORY_PATH` 미설정 시:
+     - "LIFE_MEMORY_PATH 환경변수를 설정할까요?" 확인
+     - 승인 → `echo 'export LIFE_MEMORY_PATH=~/.life-memory' >> ~/.zshrc` 실행 + "현재 세션에 적용하려면 `source ~/.zshrc`를 실행해주세요." 안내
 - 기존: 현재 설정 표시 + 변경 가이드
 
 ## /memory rebuild [디렉토리]

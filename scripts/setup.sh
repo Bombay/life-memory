@@ -16,8 +16,8 @@ fi
 cd "$MEMORY_PATH"
 
 if [[ ! -d ".git" ]]; then
-  git init
-  echo "✓ Git 초기화"
+  git init -b main
+  echo "✓ Git 초기화 (branch: main)"
 fi
 
 # 고정 디렉토리만 생성 (자율 영역은 에이전트가 필요 시 생성)
@@ -107,15 +107,7 @@ if git remote get-url origin &>/dev/null; then
   echo "✓ Remote: $(git remote get-url origin)"
 else
   echo ""
-  echo "Remote 미설정. GitHub private repo 생성 후:"
-  echo "  git remote add origin git@github.com:USERNAME/life-memory.git"
-  echo "  git push -u origin main"
-fi
-
-if [[ -z "${LIFE_MEMORY_PATH:-}" ]]; then
-  echo ""
-  echo "환경변수 설정 권장:"
-  echo "  echo 'export LIFE_MEMORY_PATH=$MEMORY_PATH' >> ~/.zshrc"
+  echo "ℹ Remote 미설정. /memory setup에서 에이전트가 GitHub repo 생성을 도와드립니다."
 fi
 
 echo ""
